@@ -21,7 +21,7 @@ struct Sphere {
     float   x,y,z;
     // Tells us if a ray hits the sphere; return the
     // depth of the hit, or -infinity if the ray misses the sphere
-    float hit( float ox, float oy, float *n ) 
+    __device__ float hit( float ox, float oy, float *n ) 
     {
         float dx = ox - x;
         float dy = oy - y;
@@ -41,11 +41,10 @@ struct Sphere {
 // red, green, and blue) and then for each pixel checks if a ray from
 // top down hits one of the randomly generated spheres.
 // If so, calculate a shade of color based on where the ray hits it.
-void drawSpheres(Sphere spheres[], char *red, char *green, char *blue)
+__global__ void drawSpheres(Sphere spheres[], char *red, char *green, char *blue)
 {
-    for (int x = 0; x < DIM; x++)
-     for (int y = 0; y < DIM; y++)
-     {
+  int x = blockIdx.x;
+  int y = blockIdx.y;
 	float   ox = (x - DIM/2);
 	float   oy = (y - DIM/2);
 
@@ -56,20 +55,19 @@ void drawSpheres(Sphere spheres[], char *red, char *green, char *blue)
         	float   n;
         	float   t = spheres[i].hit( ox, oy, &n );
         	if (t > maxz)
-		{
-			// Scale RGB color based on z depth of sphere
-            		float fscale = n;
-            		r = spheres[i].r * fscale;
-            		g = spheres[i].g * fscale;
-            		b = spheres[i].b * fscale;
-            		maxz = t;
+		      {
+			      // Scale RGB color based on z depth of sphere
+            float fscale = n;
+          	r = spheres[i].r * fscale;
+          	g = spheres[i].g * fscale;
+          	b = spheres[i].b * fscale;
+          	maxz = t;
         	}
         }
-    	int offset = x + y * DIM;
-    	red[offset] = (char) (r * 255);
-    	green[offset] = (char) (g * 255);
-    	blue[offset] = (char) (b * 255);
-    }
+  int offset = x + y * DIM;
+  red[offset] = (char) (r * 255);
+  green[offset] = (char) (g * 255);
+  blue[offset] = (char) (b * 255);
 }
 
 int main()
@@ -79,16 +77,19 @@ int main()
   FIBITMAP * bitmap = FreeImage_Allocate(DIM, DIM, 24);
   srand(time(NULL));
 
-  char *red;
-  char *green;
-  char *blue;
+  char *red, *green, *blue;
+  char *dev_red, *dev_green, *dev_blue;
 
   // Dynamically create enough memory for DIM * DIM array of char.
   // By making these dynamic rather than auto (e.g. char red[DIM][DIM])
   // we can make them much bigger since they are allocated off the heap
-  red = (char *) malloc(DIM*DIM*sizeof(char));
-  green = (char *) malloc(DIM*DIM*sizeof(char));
-  blue = (char *) malloc(DIM*DIM*sizeof(char));
+  cudaMalloc((void**)&dev_red, sizeof(char)*DIM*DIM);
+  cudaMalloc((void**)&dev_green, sizeof(char)*DIM*DIM);
+  cudaMalloc((void**)&dev_blue, sizeof(char)*DIM*DIM);
+  red = new char[DIM*DIM];
+  green = new char[DIM*DIM];
+  blue = new char[DIM*DIM];
+
 
   // Create random spheres at different coordinates, colors, radius
   Sphere spheres[SPHERES];
@@ -102,9 +103,22 @@ int main()
         spheres[i].z = rnd( (float) DIM ) - (DIM/2.0);
         spheres[i].radius = rnd( 200.0f ) + 40;
   }
+  Sphere dev_spheres[SPHERES];
+  cudaMalloc((void**)&dev_spheres, sizeof(Sphere)*SPHERES);
+  cudaMemcpy(dev_spheres, spheres, sizeof(Sphere)*SPHERES, cudaMemcpyHostToDevice);
 
-  drawSpheres(spheres, red, green, blue);
-
+  // Copy the data to the GPU
+  cudaMemcpy(dev_red, red, DIM*DIM*sizeof(char), cudaMemcpyHostToDevice);
+  cudaMemcpy(dev_green, green, DIM*DIM*sizeof(char), cudaMemcpyHostToDevice);
+  cudaMemcpy(dev_blue, blue, DIM*DIM*sizeof(char), cudaMemcpyHostToDevice);
+  // Create a kernel to draw the spheres
+  dim3 grid(DIM, DIM); // Grid size
+  drawSpheres <<< grid, 1 >>> (dev_spheres, dev_red, dev_green, dev_blue);
+  // Copy the data back to the host
+  cudaMemcpy(red, dev_red, sizeof(char)*DIM*DIM, cudaMemcpyDeviceToHost);
+  cudaMemcpy(green, dev_green, sizeof(char)*DIM*DIM, cudaMemcpyDeviceToHost);
+  cudaMemcpy(blue, dev_blue, sizeof(char)*DIM*DIM, cudaMemcpyDeviceToHost);
+  
   RGBQUAD color;
   for (int i = 0; i < DIM; i++)
   {
@@ -120,10 +134,12 @@ int main()
 	
   FreeImage_Save(FIF_PNG, bitmap, "ray.png", 0);
   FreeImage_Unload(bitmap);
-  free(red);
-  free(green);
-  free(blue);
+  cudaFree(dev_red);
+  cudaFree(dev_green);
+  cudaFree(dev_blue);
+  delete(red);
+  delete(green);
+  delete(blue);
 
   return 0;
 }
-

@@ -3,3 +3,5 @@ HW3/2dArraySumAgain
 HW3/a.out
 HW3/minFindCuda
 HW3/ray.png
+HW3/juliaCPU.cu
+HW3/juliaGPU.cu
