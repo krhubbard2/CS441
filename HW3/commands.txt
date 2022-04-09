@@ -15,5 +15,5 @@ hw 4:
     ./2dArraySumAgain
 
 hw 5:
-    nvcc rayGPU.cu -lfreeimage
-    ./a.out
+    nvcc -o rayGPU problem5.cu -lfreeimage
+    ./rayGPU
