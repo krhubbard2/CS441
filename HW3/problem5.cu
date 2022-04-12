@@ -103,7 +103,8 @@ int main()
         spheres[i].z = rnd( (float) DIM ) - (DIM/2.0);
         spheres[i].radius = rnd( 200.0f ) + 40;
   }
-  Sphere dev_spheres[SPHERES];
+
+  Sphere* dev_spheres;
   cudaMalloc((void**)&dev_spheres, sizeof(Sphere)*SPHERES);
   cudaMemcpy(dev_spheres, spheres, sizeof(Sphere)*SPHERES, cudaMemcpyHostToDevice);
 
@@ -114,11 +115,12 @@ int main()
   // Create a kernel to draw the spheres
   dim3 grid(DIM, DIM); // Grid size
   drawSpheres <<< grid, 1 >>> (dev_spheres, dev_red, dev_green, dev_blue);
+  cudaDeviceSynchronize();
   // Copy the data back to the host
   cudaMemcpy(red, dev_red, sizeof(char)*DIM*DIM, cudaMemcpyDeviceToHost);
   cudaMemcpy(green, dev_green, sizeof(char)*DIM*DIM, cudaMemcpyDeviceToHost);
   cudaMemcpy(blue, dev_blue, sizeof(char)*DIM*DIM, cudaMemcpyDeviceToHost);
-  
+  cudaDeviceSynchronize();
   RGBQUAD color;
   for (int i = 0; i < DIM; i++)
   {

@@ -19,4 +19,4 @@ Commands to run programs:
         nvcc -o rayGPU problem5.cu -lfreeimage
         ./rayGPU
 
-All programs work as intended, except for problem 5. Compiles and outputs, but spheres aren't shown correctly.
+All programs work as intended.
